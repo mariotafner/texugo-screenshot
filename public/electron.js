@@ -56,7 +56,7 @@ function createWindow() {
                 `file://${path.join(__dirname, '../build/index.html')}?screen=${sources[i].id}&i=${i}`
             );
 
-            if (!app.isPackaged && !(test && i === 0)) {
+            if (!app.isPackaged && !(test && i == 0)) {
                 if (devTools) {
                     win.webContents.openDevTools({
                         mode: 'detach'
@@ -139,7 +139,7 @@ ipcMain.on(functions.GET_IMAGE, async(event, arg) => {
 ipcMain.on(functions.SHOW, async(event, arg) => {
     if (win_list[arg] == null) return;
 
-    if (test && arg === 0) {
+    if (test && arg === "0") {
         return;
     }
 

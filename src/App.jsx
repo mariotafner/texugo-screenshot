@@ -2,7 +2,7 @@ import './App.css';
 import { functions } from './shared/constants';
 import { useEffect, useState, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowPointer, faArrowRotateLeft, faClose, faCopy, faExpand, faFloppyDisk, faGripVertical, faLeftLong, faTrash, faSquare as faSquareFill } from '@fortawesome/free-solid-svg-icons'
+import { faArrowPointer, faArrowRotateLeft, faClose, faCopy, faExpand, faFloppyDisk, faGripVertical, faLeftLong, faTrash, faSquare as faSquareFill, faVectorSquare, faFont, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { faSquare } from '@fortawesome/free-regular-svg-icons'
 import Tooltip from "./Tooltip";
 
@@ -13,6 +13,7 @@ function App() {
     const [tool, setTool] = useState(null);
     const [history, setHistory] = useState([]);
     const [color, setColor] = useState("#ff0000");
+    const [text, setText] = useState("");
     
     const toolbar = useRef(null);
     const toolbarDrag = useRef(null);
@@ -23,6 +24,79 @@ function App() {
     const canvas = useRef(null);
     const rectangle = useRef(null);
     const line = useRef(null);
+    const cursor = useRef(null);
+    const textbox = useRef(null);
+    const textboxContainer = useRef(null);
+
+    const resizeTextArea = () => {
+        textbox.current.style.height = "auto";
+        textbox.current.style.height = textbox.current.scrollHeight + "px";
+        textbox.current.style.width = textbox.current.scrollWidth + "px";
+    };
+    
+      useEffect(resizeTextArea, [text]);
+    
+    const onChange = e => {
+        setText(e.target.value);
+    };
+
+    function cancelTextbox() {
+        textboxContainer.current.style.display = "none";
+        setText("");
+    }
+
+    function createTextbox(e) {
+        if (e.target === textbox.current) return;
+        if (tool !== "text") return;
+
+        setText("");
+
+        let x = e.clientX;
+        let y = e.clientY;
+
+        textboxContainer.current.style.top = y + "px";
+        textboxContainer.current.style.left = x + "px";
+        textboxContainer.current.style.display = "flex";
+        textbox.current.focus();
+    }
+
+    function applyText() {
+        let color = document.getElementById("color").value;
+        let previouseData = canvas.current.toDataURL('image/png');
+
+        addHistory({
+            type: "canvas",
+            data: previouseData,
+        });
+
+        let ctx = canvas.current.getContext('2d');
+        ctx.fillStyle = color;
+
+        let textbox_rect = textbox.current.getBoundingClientRect();
+
+        let left = textbox_rect.left;
+        let top = textbox_rect.top;
+
+        left = left + 0;
+        top = top + 20;
+
+        ctx.font = "15pt Arial";
+
+        function fillTextMultiLine(ctx, text, x, y) {
+            let lineHeight = ctx.measureText("M").width * 1.2;
+            lineHeight += 2; 
+            let lines = text.split("\n");
+            for (let i = 0; i < lines.length; ++i) {
+                ctx.fillText(lines[i], x, y);
+                y += lineHeight;
+            }
+        }
+
+        fillTextMultiLine(ctx, text, left, top);
+
+        textboxContainer.current.style.display = "none";
+        setText("");
+    }
 
     async function addHistory(action) {
         let tmp = history;
@@ -146,30 +220,35 @@ function App() {
                     toolbar.current.style.left = (window.innerWidth / 2) - (toolbar.current.offsetWidth / 2) + "px";
                     
                     document.addEventListener('keydown', (e) => {
-                        e.preventDefault();
-                
-                        if (e.key === "Escape") {
-                            ipcRenderer.send(functions.CLOSE);
+                        if (textbox.current === document.activeElement) {
+                            if (e.key === "Escape") {
+                                cancelTextbox();
+                            }
                         }
-                        
-                        if (e.ctrlKey && e.key === "s") {
-                            save();
-                        }
-                
-                        if (e.ctrlKey && e.key === "c") {
-                            copy();
-                        }
-
-                        if (e.key === "Delete") {
-                            clear_selection();
-                        }
-
-                        if (e.ctrlKey && e.key === "a") {
-                            expand_selection();
+                        else {
+                            if (e.key === "Escape") {
+                                ipcRenderer.send(functions.CLOSE);
+                            }
+                            
+                            if (e.ctrlKey && e.key === "c") {
+                                copy();
+                            }
+    
+                            if (e.key === "Delete") {
+                                clear_selection();
+                            }
+    
+                            if (e.ctrlKey && e.key === "a") {
+                                expand_selection();
+                            }
+                            e.preventDefault();
                         }
 
                         if (e.ctrlKey && e.key === "z") {
                             undo();
+                        }
+                        if (e.ctrlKey && e.key === "s") {
+                            save();
                         }
                     });
                 }
@@ -391,6 +470,11 @@ function App() {
     
             const windowWidth = window.innerWidth;
             const windowHeight = window.innerHeight;
+
+            // if (cursor.current) {
+            //     cursor.current.style.top = (mouseY + 15) + "px";
+            //     cursor.current.style.left = (mouseX + 15) + "px";
+            // }
     
             if (toolbar.current && toolbar.current.getAttribute("data-dragging") === "true" && tempTool === '') {
                 const newTop = mouseY - toolbar.current.getAttribute("mouse-start-drag-position-y");
@@ -702,6 +786,10 @@ function App() {
         setTool(null);
     }
 
+    function textTool() {
+        setTool("text");
+    }
+
     return (
         <div style={{
             width: '100vw',
@@ -718,13 +806,15 @@ function App() {
                 height: '100vh',
                 zIndex: '0',
             }}></canvas>
-            <svg style={{
+
+            <svg onClick={createTextbox} style={{
                 width: '100vw',
                 height: '100vw',
                 position: 'fixed',
                 top: '0',
                 left: '0',
                 zIndex: '1',
+                cursor: tool === 'text' ? 'text' : 'default',
             }}>
                 <mask id="svgmask">
                     <rect id="bg" x="0" y="0" width="100%" height="100%" fill="white"/>
@@ -797,8 +887,9 @@ function App() {
                             cursor: tool === null ? 'w-resize' : 'default',
                             userSelect: 'none',
                         }} resize="left"></div>
-                        <div style={{
+                        <div onClick={createTextbox} style={{
                             flex: '1',
+                            cursor: tool === 'text' ? 'text' : 'default',
                         }}></div>
                         <div style={{
                             width: '10px',
@@ -833,6 +924,47 @@ function App() {
                 </div>
             </div>
 
+            <div ref={textboxContainer} style={{
+                zIndex: '4',
+                position: 'fixed',
+                display: 'none',
+                gap: '5px',
+                flexDirection: 'column',
+                justifyContent: 'stretch',
+            }}>
+                <textarea ref={textbox} value={text} onChange={onChange} style={{
+                    resize: 'none',
+                    outline: 'none',
+                    background: 'transparent',
+                    color: color,
+                    fontSize: '15pt',
+                    fontFamily: 'Arial',
+                    // fontWeight: 'bold',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    overflowWrap: 'normal',
+                    border: '1px dashed ' + color,
+                    minWidth: '100px',
+                    minHeight: '30px',
+                }}/>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: '5px',
+                }}>
+                    <button onClick={cancelTextbox} style={{
+                        backgroundColor: '#fff',
+                        padding: '5px',
+                        borderRadius: '5px',
+                    }}><FontAwesomeIcon icon={faClose} /></button>
+                    <button onClick={applyText} style={{
+                        backgroundColor: '#fff',
+                        padding: '5px',
+                        borderRadius: '5px',
+                    }}><FontAwesomeIcon icon={faCheck} /></button>
+                </div>
+            </div>
+
             <div ref={toolbar} style={{
                 position: 'fixed',
                 left: '0',
@@ -844,7 +976,7 @@ function App() {
                 borderRadius: '10px',
                 alignItems: 'stretch',
                 userSelect: 'none',
-                zIndex: '4',
+                zIndex: '5',
             }}>
                 <div ref={toolbarDrag} style={{
                     display: 'flex',
@@ -915,9 +1047,10 @@ function App() {
                     fontSize: '15pt',
                     padding: '10px',
                     borderRadius: '5px',
-                }} tooltip="No Tool" onClick={() => {
+                }} tooltip="Select Area" onClick={() => {
                     clear_tool();
-                }}><FontAwesomeIcon icon={faArrowPointer} /></button> 
+                }}><FontAwesomeIcon icon={faVectorSquare} /></button> 
+            {/* }}><FontAwesomeIcon icon={faArrowPointer} /></button>  */}
 
                 <button className={tool === "rectangle" ? "button-selected" : ''} style={{
                     fontSize: '15pt',
@@ -933,7 +1066,15 @@ function App() {
                     borderRadius: '5px',
                 }} tooltip="Draw Arrow" onClick={() => {
                     drawArrow();
-                }}><FontAwesomeIcon icon={faLeftLong} /></button> 
+                }}><FontAwesomeIcon icon={faLeftLong} /></button>
+
+                <button className={tool === "text" ? "button-selected" : ''} style={{
+                    fontSize: '15pt',
+                    padding: '10px',
+                    borderRadius: '5px',
+                }} tooltip="Insert Text" onClick={() => {
+                    textTool();
+                }}><FontAwesomeIcon icon={faFont} /></button> 
 
                 <div style={{
                     display: 'flex',
@@ -941,14 +1082,6 @@ function App() {
                     justifyContent: 'center',
                 }}>
                     <input type='color' id="color" style={{
-                        // border: '0',
-                        // padding: '0',
-                        // appearance: 'none',
-                        // background: 'none',
-                        // cursor: 'pointer',
-                        // width: '30px',
-                        // height: '30px',
-                        // borderRadius: '5px',
                         display: 'block',
                         width: '0',
                         height: '0',
@@ -990,7 +1123,6 @@ function App() {
                     undo();
                 }}><FontAwesomeIcon icon={faArrowRotateLeft} /></button> 
 
-
                 <div style={{
                     width: '5px',
                     display: 'flex',
@@ -1011,6 +1143,52 @@ function App() {
                     ipcRenderer.send(functions.CLOSE);
                 }}><FontAwesomeIcon icon={faClose} /></button> 
             </div>
+
+            {/* <div ref={cursor} style={{
+                zIndex: '6',
+                position: 'fixed',
+                display: 'none',
+            }}>
+                {tool === null && <>
+                    <FontAwesomeIcon style={{
+                        stroke: 'white',
+                        strokeWidth: '50px',
+                        color: 'white',
+                        width: '20px',
+                    }} icon={faVectorSquare} />
+                    <FontAwesomeIcon style={{
+                        marginLeft: '-20px',
+                        color: 'black',
+                        width: '20px',
+                    }} icon={faVectorSquare} />
+                </>}
+                {tool === 'rectangle' && <>
+                    <FontAwesomeIcon style={{
+                        stroke: 'white',
+                        strokeWidth: '50px',
+                        color: 'white',
+                        width: '20px',
+                    }} icon={faSquare} />
+                    <FontAwesomeIcon style={{
+                        marginLeft: '-20px',
+                        color: 'black',
+                        width: '20px',
+                    }} icon={faSquare} />
+                </>}
+                {tool === 'arrow' && <>
+                    <FontAwesomeIcon style={{
+                        stroke: 'white',
+                        strokeWidth: '50px',
+                        color: 'white',
+                        width: '20px',
+                    }} icon={faLeftLong} />
+                    <FontAwesomeIcon style={{
+                        marginLeft: '-20px',
+                        color: 'black',
+                        width: '20px',
+                    }} icon={faLeftLong} />
+                </>}
+            </div> */}
             <input type="hidden" id="tool" />
             <input type="hidden" id="x" />
             <input type="hidden" id="y" />
