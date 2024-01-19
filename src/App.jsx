@@ -54,6 +54,12 @@ function App() {
         let x = e.clientX;
         let y = e.clientY;
 
+        y -= 10;
+
+        if (y < 0) {
+            y = 0;
+        }
+
         textboxContainer.current.style.top = y + "px";
         textboxContainer.current.style.left = x + "px";
         textboxContainer.current.style.display = "flex";
@@ -956,11 +962,13 @@ function App() {
                         backgroundColor: '#fff',
                         padding: '5px',
                         borderRadius: '5px',
+                        boxShadow: '0px 2px 5px rgba(0,0,0,0.5)',
                     }}><FontAwesomeIcon icon={faClose} /></button>
                     <button onClick={applyText} style={{
                         backgroundColor: '#fff',
                         padding: '5px',
                         borderRadius: '5px',
+                        boxShadow: '0px 2px 5px rgba(0,0,0,0.5)',
                     }}><FontAwesomeIcon icon={faCheck} /></button>
                 </div>
             </div>
