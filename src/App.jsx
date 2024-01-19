@@ -24,8 +24,6 @@ function App() {
     const rectangle = useRef(null);
     const line = useRef(null);
 
-    const [moouseDragPosition, setMouseDragPosition] = useState({ x: 0, y: 0 });
-
     async function addHistory(action) {
         let tmp = history;
         tmp.push(action);
@@ -35,8 +33,6 @@ function App() {
         }
 
         setHistory(tmp);
-
-        console.log(action);
     }
 
     async function undo() {
@@ -150,8 +146,6 @@ function App() {
                     toolbar.current.style.left = (window.innerWidth / 2) - (toolbar.current.offsetWidth / 2) + "px";
                     
                     document.addEventListener('keydown', (e) => {
-                        //console.log(e.key);
-                
                         e.preventDefault();
                 
                         if (e.key === "Escape") {
@@ -194,7 +188,10 @@ function App() {
             if (toolbar.current && toolbarDrag.current.contains(e.target)){
                 toolbar.current.setAttribute("data-dragging", true)
                 toolbarDrag.current.style.cursor = "grabbing";
-                setMouseDragPosition({ x: relative_mouse_x, y: relative_mouse_y });
+                // setMouseDragPosition({ x: relative_mouse_x, y: relative_mouse_y });
+
+                toolbar.current.setAttribute("mouse-start-drag-position-x", relative_mouse_x);
+                toolbar.current.setAttribute("mouse-start-drag-position-y", relative_mouse_y);
             }
     
             if (canvasForeground.current && canvasForeground.current.contains(e.target) && tempTool === ''){
@@ -319,7 +316,7 @@ function App() {
             if (tempTool === "rectangle" && rectangle.current.getAttribute("data-dragging") === "true") {
                 let color = document.getElementById("color").value;
                 let previouseData = canvas.current.toDataURL('image/png');
-                //console.log(previouseData);
+      
                 addHistory({
                     type: "canvas",
                     data: previouseData,
@@ -345,7 +342,7 @@ function App() {
             if (tempTool === "arrow" && line.current.getAttribute("data-dragging") === "true") {
                 let color = document.getElementById("color").value;
                 let previouseData = canvas.current.toDataURL('image/png');
-                //console.log(previouseData);
+                
                 addHistory({
                     type: "canvas",
                     data: previouseData,
@@ -396,8 +393,8 @@ function App() {
             const windowHeight = window.innerHeight;
     
             if (toolbar.current && toolbar.current.getAttribute("data-dragging") === "true" && tempTool === '') {
-                const newTop = mouseY - moouseDragPosition.y;
-                const newLeft = mouseX - moouseDragPosition.x;
+                const newTop = mouseY - toolbar.current.getAttribute("mouse-start-drag-position-y");
+                const newLeft = mouseX - toolbar.current.getAttribute("mouse-start-drag-position-x");
     
                 const toolbarHeight = toolbar.current.offsetHeight;
                 const toolbarWidth = toolbar.current.offsetWidth;
