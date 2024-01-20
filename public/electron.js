@@ -20,11 +20,7 @@ const {
 
 const AutoLaunch = require('auto-launch');
 
-// const isDev = require('electron-is-dev');
-
 const fs = require('fs');
-
-// const isDev = import("electron-is-dev").then((mod) => {});
 
 var win_list = [];
 

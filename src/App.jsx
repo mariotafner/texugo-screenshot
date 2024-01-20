@@ -2,7 +2,7 @@ import './App.css';
 import { functions } from './shared/constants';
 import { useEffect, useState, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowPointer, faArrowRotateLeft, faClose, faCopy, faExpand, faFloppyDisk, faGripVertical, faLeftLong, faTrash, faSquare as faSquareFill, faVectorSquare, faFont, faCheck } from '@fortawesome/free-solid-svg-icons'
+import { faArrowPointer, faArrowRotateLeft, faClose, faCopy, faExpand, faFloppyDisk, faGripVertical, faLeftLong, faTrash, faSquare as faSquareFill, faVectorSquare, faFont, faCheck, faPencil } from '@fortawesome/free-solid-svg-icons'
 import { faSquare } from '@fortawesome/free-regular-svg-icons'
 import Tooltip from "./Tooltip";
 
@@ -108,7 +108,7 @@ function App() {
         let tmp = history;
         tmp.push(action);
 
-        if (tmp.length > 5) {
+        if (tmp.length > 10) {
             tmp.shift();
         }
 
@@ -333,6 +333,27 @@ function App() {
                 line.current.setAttribute("y2", e.clientY);
                 line.current.setAttribute("data-dragging", true);
             }
+
+            if (tempTool === "pencil" && !toolbar.current.contains(e.target)) {
+                let color = document.getElementById("color").value;
+                let previouseData = canvas.current.toDataURL('image/png');
+      
+                addHistory({
+                    type: "canvas",
+                    data: previouseData,
+                });
+                
+                canvas.current.setAttribute("data-drawing", true);
+
+                let ctx = canvas.current.getContext('2d');
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+    
+                ctx.beginPath();
+                ctx.moveTo(e.clientX, e.clientY);
+                ctx.lineTo(e.clientX, e.clientY);
+                ctx.stroke();
+            }
         });
     
         window.addEventListener("mouseup", (e) => {
@@ -466,6 +487,10 @@ function App() {
                 ctx.restore();
 
                 line.current.setAttribute("data-dragging", false);
+            }
+
+            if (tempTool === "pencil" && canvas.current.getAttribute("data-drawing") === "true") {
+                canvas.current.removeAttribute("data-drawing");
             }
         }) 
     
@@ -659,6 +684,12 @@ function App() {
                 line.current.setAttribute("x2", mouseX);
                 line.current.setAttribute("y2", mouseY);
             }
+
+            if (tempTool === "pencil" && canvas.current.getAttribute("data-drawing") === "true") {
+                let ctx = canvas.current.getContext('2d');
+                ctx.lineTo(mouseX, mouseY);
+                ctx.stroke();
+            }
         });
     }, []);
 
@@ -795,6 +826,10 @@ function App() {
     function textTool() {
         setTool("text");
     }
+
+    function pencilTool() {
+        setTool("pencil");
+    }	
 
     return (
         <div style={{
@@ -1084,6 +1119,14 @@ function App() {
                     textTool();
                 }}><FontAwesomeIcon icon={faFont} /></button> 
 
+                <button className={tool === "pencil" ? "button-selected" : ''} style={{
+                    fontSize: '15pt',
+                    padding: '10px',
+                    borderRadius: '5px',
+                }} tooltip="Pencil Tool" onClick={() => {
+                    pencilTool();
+                }}><FontAwesomeIcon icon={faPencil} /></button> 
+
                 <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -1152,56 +1195,12 @@ function App() {
                 }}><FontAwesomeIcon icon={faClose} /></button> 
             </div>
 
-            {/* <div ref={cursor} style={{
-                zIndex: '6',
-                position: 'fixed',
-                display: 'none',
-            }}>
-                {tool === null && <>
-                    <FontAwesomeIcon style={{
-                        stroke: 'white',
-                        strokeWidth: '50px',
-                        color: 'white',
-                        width: '20px',
-                    }} icon={faVectorSquare} />
-                    <FontAwesomeIcon style={{
-                        marginLeft: '-20px',
-                        color: 'black',
-                        width: '20px',
-                    }} icon={faVectorSquare} />
-                </>}
-                {tool === 'rectangle' && <>
-                    <FontAwesomeIcon style={{
-                        stroke: 'white',
-                        strokeWidth: '50px',
-                        color: 'white',
-                        width: '20px',
-                    }} icon={faSquare} />
-                    <FontAwesomeIcon style={{
-                        marginLeft: '-20px',
-                        color: 'black',
-                        width: '20px',
-                    }} icon={faSquare} />
-                </>}
-                {tool === 'arrow' && <>
-                    <FontAwesomeIcon style={{
-                        stroke: 'white',
-                        strokeWidth: '50px',
-                        color: 'white',
-                        width: '20px',
-                    }} icon={faLeftLong} />
-                    <FontAwesomeIcon style={{
-                        marginLeft: '-20px',
-                        color: 'black',
-                        width: '20px',
-                    }} icon={faLeftLong} />
-                </>}
-            </div> */}
             <input type="hidden" id="tool" />
             <input type="hidden" id="x" />
             <input type="hidden" id="y" />
             <input type="hidden" id="w" />
             <input type="hidden" id="h" />
+
             <Tooltip />
         </div>
     );
