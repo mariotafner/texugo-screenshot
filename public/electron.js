@@ -194,8 +194,13 @@ ipcMain.on(functions.SAVE, async(event, arg) => {
 
         var base64Data = arg.replace(/^data:image\/png;base64,/, "");
 
+        let filePath = file.filePath.toString();
+        if (!filePath.endsWith('.png')) {
+            filePath += '.png';
+        }
+
         //write file
-        fs.writeFile(file.filePath.toString(), base64Data, 'base64', (err) => {
+        fs.writeFile(filePath, base64Data, 'base64', (err) => {
             if (err) {
                 console.log(err);
             }
