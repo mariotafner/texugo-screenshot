@@ -2,7 +2,7 @@ import './App.css';
 import { functions } from './shared/constants';
 import { useEffect, useState, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowPointer, faArrowRotateLeft, faClose, faCopy, faExpand, faFloppyDisk, faGripVertical, faLeftLong, faTrash, faSquare as faSquareFill, faVectorSquare, faFont, faCheck, faPencil } from '@fortawesome/free-solid-svg-icons'
+import { faArrowPointer, faArrowRotateLeft, faClose, faCopy, faExpand, faFloppyDisk, faGripVertical, faLeftLong, faTrash, faSquare as faSquareFill, faVectorSquare, faFont, faCheck, faPencil, faCaretUp } from '@fortawesome/free-solid-svg-icons'
 import { faSquare } from '@fortawesome/free-regular-svg-icons'
 import Tooltip from "./Tooltip";
 
@@ -14,7 +14,12 @@ function App() {
     const [history, setHistory] = useState([]);
     const [color, setColor] = useState("#ff0000");
     const [text, setText] = useState("");
-    
+    const [tools, setTools] = useState({
+        rectangle: 'border',
+        arrow: 'arrow',
+        pencil: 'pencil',
+    }); 
+
     const toolbar = useRef(null);
     const toolbarDrag = useRef(null);
     const selectBox = useRef(null);
@@ -313,7 +318,7 @@ function App() {
                 selectBox.current.setAttribute("initial-modal-top", top);
             }     
             
-            if (canvasForeground.current && tempTool === "rectangle" && !toolbar.current.contains(e.target)) {
+            if ((canvasForeground.current && tempTool === "rectangle" || canvasForeground.current && tempTool === "rectangle-fill") && !toolbar.current.contains(e.target)) {
                 rectangle.current.style.display = "block";
                 rectangle.current.style.left = e.clientX + "px";
                 rectangle.current.style.top = e.clientY + "px";
@@ -419,7 +424,7 @@ function App() {
             rectangle.current.style.display = "none";
             line.current.style.display = "none";
     
-            if (tempTool === "rectangle" && rectangle.current.getAttribute("data-dragging") === "true") {
+            if ((tempTool === "rectangle" || tempTool === "rectangle-fill") && rectangle.current.getAttribute("data-dragging") === "true") {
                 let color = document.getElementById("color").value;
                 let previouseData = canvas.current.toDataURL('image/png');
       
@@ -429,8 +434,7 @@ function App() {
                 });
     
                 let ctx = canvas.current.getContext('2d');
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 3;
+                
     
                 let left = parseInt(rectangle.current.style.left.replace("px", ""));
                 let top = parseInt(rectangle.current.style.top.replace("px", ""));
@@ -439,8 +443,16 @@ function App() {
     
                 left = left + 2;
                 top = top + 2;
-    
-                ctx.strokeRect(left, top, width, height);
+                
+                if (tempTool === "rectangle-fill") {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(left, top, width, height);
+                }
+                else {
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(left, top, width, height);
+                }
 
                 rectangle.current.setAttribute("data-dragging", false);
             }
@@ -653,7 +665,7 @@ function App() {
                 applyRect();
             }
     
-            if (tempTool === "rectangle" && rectangle.current.getAttribute("data-dragging") === "true") {
+            if ((tempTool === "rectangle" || tempTool === "rectangle-fill") && rectangle.current.getAttribute("data-dragging") === "true") {
                 let rectangleTop = parseInt(rectangle.current.getAttribute("mouse-start-resize-position-y"));
                 let rectangleLeft = parseInt(rectangle.current.getAttribute("mouse-start-resize-position-x"));
     
@@ -673,7 +685,6 @@ function App() {
                     newWidth = Math.abs(newWidth);
                 }
     
-    
                 rectangle.current.style.height = newHeight + "px";
                 rectangle.current.style.width = newWidth + "px";
                 rectangle.current.style.top = newTop + "px";
@@ -689,6 +700,73 @@ function App() {
                 let ctx = canvas.current.getContext('2d');
                 ctx.lineTo(mouseX, mouseY);
                 ctx.stroke();
+            }
+        });
+
+        function getMO(elm){
+            function findMOClass(classList){
+                if (!classList) return null;
+                for (let classItem of classList) {
+                    if (classItem.startsWith("mo-") && classItem.endsWith("-target")) {
+                        return classItem;
+                    }
+                }
+                return null;
+            } 
+
+            let classList = elm.classList;
+            let moClass = findMOClass(classList);
+
+            if (moClass) {
+                return moClass;
+            }
+            else {
+                let node = elm.parentNode;
+                while (node) {
+                    classList = node.classList;
+                    moClass = findMOClass(classList);
+                    if (moClass) {
+                        return moClass;
+                    }
+                    node = node.parentNode;
+                }
+            }
+        }
+
+        document.addEventListener("mouseover", (e) => {
+            let mo = getMO(e.target);
+
+            if (!mo) return;
+
+            let name = mo.replace("mo-", "").replace("-target", "");
+            let mo_hide_list = document.querySelectorAll(".mo-" + name + "-hide");
+            let mo_show_list = document.querySelectorAll(".mo-" + name + "-show");
+
+            for (let item of mo_hide_list) {
+                item.style.display = "none";
+            }
+
+            for (let item of mo_show_list) {
+                item.style.display = "inline-block";
+            }
+        });
+
+        document.addEventListener("mouseout", (e) => {
+            let mo = getMO(e.target);
+
+            if (!mo) return;
+
+            let name = mo.replace("mo-", "").replace("-target", "");
+
+            let mo_hide_list = document.querySelectorAll(".mo-" + name + "-hide");
+            let mo_show_list = document.querySelectorAll(".mo-" + name + "-show");
+
+            for (let item of mo_hide_list) {
+                item.style.display = "inline-block";
+            }
+
+            for (let item of mo_show_list) {
+                item.style.display = "none";
             }
         });
     }, []);
@@ -815,6 +893,10 @@ function App() {
         setTool("rectangle");
     }
 
+    function drawRectangleFill(){
+        setTool("rectangle-fill");
+    }
+
     function drawArrow() {
         setTool("arrow");
     }
@@ -871,7 +953,8 @@ function App() {
 
             <div ref={rectangle} style={{
                 position: 'fixed',
-                border: '3px solid ' + color,
+                border: tool === 'rectangle' ? '3px solid ' + color : 'none',
+                backgroundColor: tool === 'rectangle-fill' ? color : 'transparent',
                 zIndex: '2',
                 display: 'none',
             }}></div>
@@ -1093,23 +1176,81 @@ function App() {
                 }} tooltip="Select Area" onClick={() => {
                     clear_tool();
                 }}><FontAwesomeIcon icon={faVectorSquare} /></button> 
-            {/* }}><FontAwesomeIcon icon={faArrowPointer} /></button>  */}
 
-                <button className={tool === "rectangle" ? "button-selected" : ''} style={{
-                    fontSize: '15pt',
-                    padding: '10px',
-                    borderRadius: '5px',
-                }} tooltip="Draw Rectangle" onClick={() => {
-                    drawRectangle();
-                }}><FontAwesomeIcon icon={faSquare} /></button> 
+                {tools.rectangle === "border" ?
+                    <button className={(tool === "rectangle" ? "button-selected" : '') + " mo-rectangle-target"} style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Draw Rectangle" tooltip-position="bottom" onClick={() => {
+                        drawRectangle();
+                    }}>
+                        <FontAwesomeIcon icon={faSquare} />
+                        <FontAwesomeIcon icon={faCaretUp} className='mo-rectangle-hide' style={{
+                            position: 'absolute',
+                            marginLeft: '-13px',
+                            marginTop: '-10px',
+                            fontSize: '10pt',
+                            opacity: '0.5',
+                        }} />
+                    </button> 
+                    :
+                    <button className={(tool === "rectangle-fill" ? "button-selected" : '') + " mo-rectangle-target"} style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Draw Rectangle" tooltip-position="bottom" onClick={() => {
+                        drawRectangleFill();
+                    }}>
+                        <FontAwesomeIcon icon={faSquareFill} />
+                        <FontAwesomeIcon icon={faCaretUp} className='mo-rectangle-hide' style={{
+                            position: 'absolute',
+                            marginLeft: '-13px',
+                            marginTop: '-10px',
+                            fontSize: '10pt',
+                            opacity: '0.5',
+                        }} />
+                    </button> 
+                }
 
-                <button className={tool === "arrow" ? "button-selected" : ''} style={{
-                    fontSize: '15pt',
-                    padding: '10px',
+                <div className='mo-rectangle-show mo-rectangle-target' style={{
+                    position: 'absolute',
+                    backgroundColor: '#151515',
+                    top: '-38px',
                     borderRadius: '5px',
-                }} tooltip="Draw Arrow" onClick={() => {
-                    drawArrow();
-                }}><FontAwesomeIcon icon={faLeftLong} /></button>
+                    left: '255px',
+                    display: "none"
+                }}>
+                    <button style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Draw Rectangle" onClick={() => {
+                        drawRectangle();
+                        let tmp = tools;
+                        tmp.rectangle = "border";
+                        setTools(tmp);
+                    }}><FontAwesomeIcon icon={faSquare} /></button> 
+                    <button style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Draw Rectangle Fill" onClick={() => {
+                        drawRectangleFill();
+                        let tmp = tools;
+                        tmp.rectangle = "fill";
+                        setTools(tmp);
+                    }}><FontAwesomeIcon icon={faSquareFill} /></button>
+                </div>
+                <div>
+                    <button className={tool === "arrow" ? "button-selected" : ''} style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Draw Arrow" onClick={() => {
+                        drawArrow();
+                    }}><FontAwesomeIcon icon={faLeftLong} /></button>
+                </div>
 
                 <button className={tool === "text" ? "button-selected" : ''} style={{
                     fontSize: '15pt',
