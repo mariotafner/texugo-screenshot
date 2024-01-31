@@ -2,7 +2,7 @@ import './App.css';
 import { functions } from './shared/constants';
 import { useEffect, useState, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowPointer, faArrowRotateLeft, faClose, faCopy, faExpand, faFloppyDisk, faGripVertical, faLeftLong, faTrash, faSquare as faSquareFill, faVectorSquare, faFont, faCheck, faPencil, faCaretUp } from '@fortawesome/free-solid-svg-icons'
+import { faArrowPointer, faArrowRotateLeft, faClose, faCopy, faExpand, faFloppyDisk, faGripVertical, faLeftLong, faTrash, faSquare as faSquareFill, faVectorSquare, faFont, faCheck, faPencil, faCaretUp, faPenClip } from '@fortawesome/free-solid-svg-icons'
 import { faSquare } from '@fortawesome/free-regular-svg-icons'
 import Tooltip from "./Tooltip";
 
@@ -318,7 +318,7 @@ function App() {
                 selectBox.current.setAttribute("initial-modal-top", top);
             }     
             
-            if ((canvasForeground.current && tempTool === "rectangle" || canvasForeground.current && tempTool === "rectangle-fill") && !toolbar.current.contains(e.target)) {
+            if ((canvasForeground.current && (tempTool === "rectangle" || tempTool === "rectangle-fill")) && !toolbar.current.contains(e.target)) {
                 rectangle.current.style.display = "block";
                 rectangle.current.style.left = e.clientX + "px";
                 rectangle.current.style.top = e.clientY + "px";
@@ -339,7 +339,7 @@ function App() {
                 line.current.setAttribute("data-dragging", true);
             }
 
-            if (tempTool === "pencil" && !toolbar.current.contains(e.target)) {
+            if ((tempTool === "pencil" || tempTool === "highlighter") && !toolbar.current.contains(e.target)) {
                 let color = document.getElementById("color").value;
                 let previouseData = canvas.current.toDataURL('image/png');
       
@@ -349,10 +349,18 @@ function App() {
                 });
                 
                 canvas.current.setAttribute("data-drawing", true);
-
+                
                 let ctx = canvas.current.getContext('2d');
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2;
+                if (tempTool === "pencil") {
+                    ctx.globalCompositeOperation = 'normal';
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;    
+                }
+                else {
+                    ctx.globalCompositeOperation = 'multiply';
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 20;
+                }
     
                 ctx.beginPath();
                 ctx.moveTo(e.clientX, e.clientY);
@@ -501,7 +509,9 @@ function App() {
                 line.current.setAttribute("data-dragging", false);
             }
 
-            if (tempTool === "pencil" && canvas.current.getAttribute("data-drawing") === "true") {
+            if ((tempTool === "pencil" || tempTool === "highlighter") && canvas.current.getAttribute("data-drawing") === "true") {
+                let ctx = canvas.current.getContext('2d');
+                ctx.globalCompositeOperation = 'normal';
                 canvas.current.removeAttribute("data-drawing");
             }
         }) 
@@ -696,7 +706,7 @@ function App() {
                 line.current.setAttribute("y2", mouseY);
             }
 
-            if (tempTool === "pencil" && canvas.current.getAttribute("data-drawing") === "true") {
+            if ((tempTool === "pencil" || tempTool === "highlighter") && canvas.current.getAttribute("data-drawing") === "true") {
                 let ctx = canvas.current.getContext('2d');
                 ctx.lineTo(mouseX, mouseY);
                 ctx.stroke();
@@ -911,6 +921,10 @@ function App() {
 
     function pencilTool() {
         setTool("pencil");
+    }
+    
+    function highlighterTool() {
+        setTool("highlighter");
     }	
 
     return (
@@ -1242,6 +1256,7 @@ function App() {
                         setTools(tmp);
                     }}><FontAwesomeIcon icon={faSquareFill} /></button>
                 </div>
+
                 <div>
                     <button className={tool === "arrow" ? "button-selected" : ''} style={{
                         fontSize: '15pt',
@@ -1260,13 +1275,72 @@ function App() {
                     textTool();
                 }}><FontAwesomeIcon icon={faFont} /></button> 
 
-                <button className={tool === "pencil" ? "button-selected" : ''} style={{
-                    fontSize: '15pt',
-                    padding: '10px',
+                {tools.pencil === "pencil" ?
+                    <button className={(tool === "pencil" ? "button-selected" : '') + " mo-highlighter-target"} style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Pencil Tool" tooltip-position="bottom" onClick={() => {
+                        pencilTool();
+                    }}>
+                        <FontAwesomeIcon icon={faPencil} />
+                        <FontAwesomeIcon icon={faCaretUp} className='mo-highlighter-hide' style={{
+                            position: 'absolute',
+                            marginLeft: '-13px',
+                            marginTop: '-10px',
+                            fontSize: '10pt',
+                            opacity: '0.5',
+                        }} />
+                    </button> 
+                    :
+                    <button className={(tool === "highlighter" ? "button-selected" : '') + " mo-highlighter-target"} style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Highlighter Tool" tooltip-position="bottom" onClick={() => {
+                        highlighterTool();
+                    }}>
+                        <FontAwesomeIcon icon={faPenClip} />
+                        <FontAwesomeIcon icon={faCaretUp} className='mo-highlighter-hide' style={{
+                            position: 'absolute',
+                            marginLeft: '-13px',
+                            marginTop: '-10px',
+                            fontSize: '10pt',
+                            opacity: '0.5',
+                        }} />
+                    </button> 
+                }
+
+                <div className='mo-highlighter-show mo-highlighter-target' style={{
+                    position: 'absolute',
+                    backgroundColor: '#151515',
+                    top: '-38px',
                     borderRadius: '5px',
-                }} tooltip="Pencil Tool" onClick={() => {
-                    pencilTool();
-                }}><FontAwesomeIcon icon={faPencil} /></button> 
+                    left: '382px',
+                    display: "none"
+                }}>
+                    <button style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Pencil Tool" onClick={() => {
+                        pencilTool();
+                        let tmp = tools;
+                        tmp.pencil = "pencil";
+                        setTools(tmp);
+                    }}><FontAwesomeIcon icon={faPencil} /></button> 
+                    <button style={{
+                        fontSize: '15pt',
+                        padding: '10px',
+                        borderRadius: '5px',
+                    }} tooltip="Highlighter Tool" onClick={() => {
+                        highlighterTool();
+                        let tmp = tools;
+                        tmp.pencil = "highlighter";
+                        setColor("#ffff00");
+                        setTools(tmp);
+                    }}><FontAwesomeIcon icon={faPenClip} /></button>
+                </div>
 
                 <div style={{
                     display: 'flex',
