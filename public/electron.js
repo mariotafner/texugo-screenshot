@@ -32,7 +32,6 @@ function createWindow() {
         types: ['screen'], 
         thumbnailSize: { width: 0, height: 0 }
     }).then( sources => {
-        console.log('PrintScreen');
         for (let i = 0; i < sources.length; ++i) {
             const win = new BrowserWindow({
                 width: 800,
@@ -66,9 +65,13 @@ function createWindow() {
 }
   
 function registerPrintScreen() {
-    const ret = globalShortcut.register('printscreen', () => {
+    // const ret = globalShortcut.register('printscreen', () => {
+    const ret = globalShortcut.register('PrintScreen', () => {
+        console.log('PrintScreen');
         createWindow()
     })
+
+    console.log('registerPrintScreen: ', ret);
 
     if (!ret) {
         console.log('registration failed')
@@ -101,7 +104,7 @@ app.whenReady().then(() => {
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Quit', type: 'normal', click: () => { app.quit(); } }
     ])
-    tray.setToolTip('Texugo PrintScreen')
+    tray.setToolTip('Texugo ScreenShot')
     tray.setContextMenu(contextMenu)
 
     registerPrintScreen();
