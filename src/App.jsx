@@ -176,71 +176,94 @@ function App() {
         setHistory(tmp);
     }
 
+    async function screenshot(screenID) {
+        return await new Promise((resolve, reject) => {
+            let settings = {
+                mandatory: {
+                    chromeMediaSource: 'desktop',
+                    chromeMediaSourceId: screenID,
+                },
+            }
+    
+            navigator.mediaDevices.getUserMedia({
+                video: settings,
+            }).then((stream) => {
+                let video = document.createElement('video');
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    
+                    canvas.current.width = video.videoWidth;
+                    canvas.current.height = video.videoHeight;
+                    canvas.current.getContext('2d').drawImage(video, 0, 0, canvas.current.width, canvas.current.height);
+                    let data = canvas.current.toDataURL('image/png');
+                    resolve(data);
+
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            }).catch((e) => {
+                console.error(e);
+                reject(e);
+            })
+        });
+    }
+
     async function start() {
         let current_url = window.location.href;
         let url = new URL(current_url);
-        let screen = url.searchParams.get("screen");
+        let capture_id = url.searchParams.get("capture_id");
+        let i = url.searchParams.get("i");
 
-        ipcRenderer.send(functions.GET_IMAGE, screen);
+        if (capture_id) {
+            await screenshot(capture_id);
+        }
+
+        ipcRenderer.send(functions.SHOW, i);
+
+        setTimeout(() => {
+            if (toolbar.current) {
+                toolbar.current.style.display = "flex";
+                toolbar.current.style.top = (window.innerHeight - 120) + "px";
+                toolbar.current.style.left = (window.innerWidth / 2) - (toolbar.current.offsetWidth / 2) + "px";
+                
+                document.addEventListener('keydown', (e) => {
+                    if (textbox.current === document.activeElement) {
+                        if (e.key === "Escape") {
+                            cancelTextbox();
+                        }
+                    }
+                    else {
+                        if (e.key === "Escape") {
+                            ipcRenderer.send(functions.CLOSE);
+                        }
+                        
+                        if (e.ctrlKey && e.key === "c") {
+                            copy();
+                        }
+
+                        if (e.key === "Delete") {
+                            clear_selection();
+                        }
+
+                        if (e.ctrlKey && e.key === "a") {
+                            expand_selection();
+                        }
+                        e.preventDefault();
+                    }
+
+                    if (e.ctrlKey && e.key === "z") {
+                        undo();
+                    }
+                    if (e.ctrlKey && e.key === "s") {
+                        save();
+                    }
+                });
+            }
+        }, 500);
     }
 
     useEffect(() => {
-        ipcRenderer.on(functions.GET_IMAGE, (event, arg) => {
-            arg = JSON.parse(arg);
-
-            canvas.current.width = arg.width;
-            canvas.current.height = arg.height;
-
-            var image = new Image();
-            image.onload = function() {
-                canvas.current.getContext('2d').drawImage(image, 0, 0, arg.width, arg.height);
-            };
-            image.src = arg.base64
-
-            ipcRenderer.send(functions.SHOW, arg.i);
-
-            setTimeout(() => {
-                if (toolbar.current) {
-                    toolbar.current.style.display = "flex";
-                    toolbar.current.style.top = (window.innerHeight - 120) + "px";
-                    toolbar.current.style.left = (window.innerWidth / 2) - (toolbar.current.offsetWidth / 2) + "px";
-                    
-                    document.addEventListener('keydown', (e) => {
-                        if (textbox.current === document.activeElement) {
-                            if (e.key === "Escape") {
-                                cancelTextbox();
-                            }
-                        }
-                        else {
-                            if (e.key === "Escape") {
-                                ipcRenderer.send(functions.CLOSE);
-                            }
-                            
-                            if (e.ctrlKey && e.key === "c") {
-                                copy();
-                            }
-    
-                            if (e.key === "Delete") {
-                                clear_selection();
-                            }
-    
-                            if (e.ctrlKey && e.key === "a") {
-                                expand_selection();
-                            }
-                            e.preventDefault();
-                        }
-
-                        if (e.ctrlKey && e.key === "z") {
-                            undo();
-                        }
-                        if (e.ctrlKey && e.key === "s") {
-                            save();
-                        }
-                    });
-                }
-            }, 500);
-        });
-
         start();
 
         window.addEventListener("mousedown", (e) => {

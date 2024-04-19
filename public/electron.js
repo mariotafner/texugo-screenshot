@@ -27,62 +27,30 @@ var screen_list = [];
 var test = false;
 var devTools = true;
 
+var screen_ids = {};
+
+async function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function getScreenIds() {
+    let tmp = await desktopCapturer.getSources({ 
+        types: ['screen'], 
+        thumbnailSize: { width: 0, height: 0 }
+    });
+
+    screen_ids = {};
+    for (let i = 0; i < tmp.length; ++i) {
+        screen_ids[tmp[i].display_id] = tmp[i].id;
+    }
+}
 
 async function createWindow() {
+    while (screen_ids == {}) {
+        await sleep(100);
+    }
+
     let screens = screen.getAllDisplays();
-
-    let aspect_list = [];
-    for (let i = 0; i < screens.length; ++i) {
-        const aspect = screens[i].size.width / screens[i].size.height;
-        const size = screens[i].size.width * screens[i].size.height;
-        
-        let found = false;
-        for (let j = 0; j < aspect_list.length; ++j) {
-            if (aspect_list[j].aspect === aspect) {
-                aspect_list[j].screens.push(screens[i].id);
-                
-                if (size > aspect_list[j].biggest){
-                    aspect_list[j].biggest = size;
-                    aspect_list[j].width = screens[i].size.width;
-                    aspect_list[j].height = screens[i].size.height;
-                }
-
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            aspect_list.push({
-                aspect: aspect,
-                screens: [screens[i].id],
-                biggest: size,
-                width: screens[i].size.width,
-                height: screens[i].size.height,
-            });
-        }
-    }
-
-    console.time('capture');
-    let captures = {};
-    for (let i = 0; i < aspect_list.length; ++i) {
-        console.time('getSources');
-        let tmp = await desktopCapturer.getSources({ 
-            types: ['screen'], 
-            thumbnailSize: { width: aspect_list[i].width, height: aspect_list[i].height }
-        });
-        console.timeEnd('getSources');
-
-        for (let j = 0; j < tmp.length; ++j) {
-            for (let k = 0; k < aspect_list[i].screens.length; ++k) {
-                if (tmp[j].display_id == aspect_list[i].screens[k]) {
-                    captures[String(aspect_list[i].screens[k])] = tmp[j].thumbnail.toDataURL();
-                    break;
-                }
-            }
-        }
-    }
-    console.timeEnd('capture');
 
     for (let i = 0; i < screens.length; ++i) {
         const win = new BrowserWindow({
@@ -99,8 +67,8 @@ async function createWindow() {
 
         win.loadURL(
             !app.isPackaged ?
-            'http://localhost:3000?screen=' + String(screens[i].id + '&i=' + i) :
-            `file://${path.join(__dirname, '../build/index.html')}?screen=${String(screens[i].id)}&i=${i}`
+            'http://localhost:3000?screen=' + String(screens[i].id) + '&i=' + i + '&capture_id=' + screen_ids[String(screens[i].id)] :
+            `file://${path.join(__dirname, '../build/index.html')}?screen=${String(screens[i].id)}&i=${i}&capture_id=${screen_ids[String(screens[i].id)]}`
         );
 
         if (!app.isPackaged && !(test && i == 0)) {
@@ -114,7 +82,7 @@ async function createWindow() {
         screen_list.push({
             win: win,
             screen: screens[i],
-            base64: captures[String(screens[i].id)],
+            capture_id: screen_ids[String(screens[i].id)],
             id: screens[i].id,
             i: i,
         })
@@ -163,6 +131,12 @@ app.whenReady().then(() => {
     tray.setContextMenu(contextMenu)
 
     registerPrintScreen();
+
+    getScreenIds();
+
+    setInterval(() => {
+        getScreenIds();
+    }, 1000 * 10);
 });
 
 // Quit when all windows are closed, except on macOS. There, it's common
@@ -185,32 +159,8 @@ app.on('activate', () => {
     }
 });
 
-ipcMain.on(functions.GET_IMAGE, async(event, arg) => {
-    let screen = null;
-    for (let i = 0; i < screen_list.length; ++i) {
-        if (screen_list[i] == null) continue;
-        if (screen_list[i].screen == null) continue;
-
-        if (screen_list[i].id == arg) {
-            screen = screen_list[i];
-            screen.i = i;
-            break;
-        }
-    }
-
-    if (screen == null) return;
-
-    screen.win.webContents.send(functions.GET_IMAGE, JSON.stringify({
-        id: screen.id,
-        i: screen.i,
-        base64: screen.base64,
-        width: screen.screen.size.width,
-        height: screen.screen.size.height,
-    }));
-});
-
 ipcMain.on(functions.SHOW, async(event, arg) => {
-    let i = arg;
+    let i = parseInt(arg);
 
     let screen = screen_list[i];
 
@@ -225,7 +175,10 @@ ipcMain.on(functions.SHOW, async(event, arg) => {
     screen.win.setFullScreen(true);
 
     if (i === 0) {
-        screen.win.focus();
+        screen.win.focus(); 
+        setTimeout(() => {
+            screen.win.focus();   
+        }, 500);
     }
 });
 
