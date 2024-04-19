@@ -22,46 +22,103 @@ const AutoLaunch = require('auto-launch');
 
 const fs = require('fs');
 
-var win_list = [];
+var screen_list = [];
 
 var test = false;
 var devTools = true;
 
-function createWindow() {
-    desktopCapturer.getSources({ 
-        types: ['screen'], 
-        thumbnailSize: { width: 0, height: 0 }
-    }).then( sources => {
-        for (let i = 0; i < sources.length; ++i) {
-            const win = new BrowserWindow({
-                width: 800,
-                height: 600,
-                autoHideMenuBar: true,
-                webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                },
-                show: false,
-                // fullscreen: true,
+
+async function createWindow() {
+    let screens = screen.getAllDisplays();
+
+    let aspect_list = [];
+    for (let i = 0; i < screens.length; ++i) {
+        const aspect = screens[i].size.width / screens[i].size.height;
+        const size = screens[i].size.width * screens[i].size.height;
+        
+        let found = false;
+        for (let j = 0; j < aspect_list.length; ++j) {
+            if (aspect_list[j].aspect === aspect) {
+                aspect_list[j].screens.push(screens[i].id);
+                
+                if (size > aspect_list[j].biggest){
+                    aspect_list[j].biggest = size;
+                    aspect_list[j].width = screens[i].size.width;
+                    aspect_list[j].height = screens[i].size.height;
+                }
+
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            aspect_list.push({
+                aspect: aspect,
+                screens: [screens[i].id],
+                biggest: size,
+                width: screens[i].size.width,
+                height: screens[i].size.height,
             });
+        }
+    }
 
-            win.loadURL(
-                !app.isPackaged ?
-                'http://localhost:3000?screen=' + sources[i].id + '&i=' + i :
-                `file://${path.join(__dirname, '../build/index.html')}?screen=${sources[i].id}&i=${i}`
-            );
+    console.time('capture');
+    let captures = {};
+    for (let i = 0; i < aspect_list.length; ++i) {
+        console.time('getSources');
+        let tmp = await desktopCapturer.getSources({ 
+            types: ['screen'], 
+            thumbnailSize: { width: aspect_list[i].width, height: aspect_list[i].height }
+        });
+        console.timeEnd('getSources');
 
-            if (!app.isPackaged && !(test && i == 0)) {
-                if (devTools) {
-                    win.webContents.openDevTools({
-                        mode: 'detach'
-                    });
+        for (let j = 0; j < tmp.length; ++j) {
+            for (let k = 0; k < aspect_list[i].screens.length; ++k) {
+                if (tmp[j].display_id == aspect_list[i].screens[k]) {
+                    captures[String(aspect_list[i].screens[k])] = tmp[j].thumbnail.toDataURL();
+                    break;
                 }
             }
-
-            win_list.push(win);
         }
-    })
+    }
+    console.timeEnd('capture');
+
+    for (let i = 0; i < screens.length; ++i) {
+        const win = new BrowserWindow({
+            width: screens[i].size.width,
+            height: screens[i].size.height,
+            autoHideMenuBar: true,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+            },
+            show: false,
+            // fullscreen: true,
+        });
+
+        win.loadURL(
+            !app.isPackaged ?
+            'http://localhost:3000?screen=' + String(screens[i].id + '&i=' + i) :
+            `file://${path.join(__dirname, '../build/index.html')}?screen=${String(screens[i].id)}&i=${i}`
+        );
+
+        if (!app.isPackaged && !(test && i == 0)) {
+            if (devTools) {
+                win.webContents.openDevTools({
+                    mode: 'detach'
+                });
+            }
+        }
+
+        screen_list.push({
+            win: win,
+            screen: screens[i],
+            base64: captures[String(screens[i].id)],
+            id: screens[i].id,
+            i: i,
+        })
+    }
 }
   
 function registerPrintScreen() {
@@ -92,8 +149,6 @@ app.whenReady().then(() => {
             path: app.getPath('exe'),
         });
         autoLaunch.isEnabled().then((isEnabled) => {
-            //console.log('isEnabled: ', isEnabled);
-            //if (!isEnabled) autoLaunch.enable();
             autoLaunch.enable();
         });
     }
@@ -121,8 +176,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
     // Unregister all shortcuts.
-    //globalShortcut.unregisterAll()
-    //console.log('will-quit');
+    //globalShortcut.unregisterAll();
 })
 
 app.on('activate', () => {
@@ -132,30 +186,55 @@ app.on('activate', () => {
 });
 
 ipcMain.on(functions.GET_IMAGE, async(event, arg) => {
-    //event.reply(functions.GET_IMAGE, images[arg]);
+    let screen = null;
+    for (let i = 0; i < screen_list.length; ++i) {
+        if (screen_list[i] == null) continue;
+        if (screen_list[i].screen == null) continue;
+
+        if (screen_list[i].id == arg) {
+            screen = screen_list[i];
+            screen.i = i;
+            break;
+        }
+    }
+
+    if (screen == null) return;
+
+    screen.win.webContents.send(functions.GET_IMAGE, JSON.stringify({
+        id: screen.id,
+        i: screen.i,
+        base64: screen.base64,
+        width: screen.screen.size.width,
+        height: screen.screen.size.height,
+    }));
 });
 
 ipcMain.on(functions.SHOW, async(event, arg) => {
-    if (win_list[arg] == null) return;
+    let i = arg;
 
-    if (test && arg === "0") {
+    let screen = screen_list[i];
+
+    if (screen == null) return;
+
+    if (test && i === 0) {
         return;
     }
 
-    const displays = screen.getAllDisplays()
-    const display = displays[arg]
+    screen.win.show();
+    screen.win.setPosition(screen.screen.bounds.x, screen.screen.bounds.y);
+    screen.win.setFullScreen(true);
 
-    win_list[arg].show();
-    win_list[arg].setPosition(display.bounds.x, display.bounds.y);
-    win_list[arg].setFullScreen(true);
-    win_list[arg].focus();
+    if (i === 0) {
+        screen.win.focus();
+    }
 });
 
+
 function close(){
-    for (let i = 0; i < win_list.length; ++i) {
-        win_list[i].close();
+    for (let i = 0; i < screen_list.length; ++i) {
+        screen_list[i].win.close();
     }
-    win_list = [];
+    screen_list = [];
     //registerPrintScreen();
 }
 

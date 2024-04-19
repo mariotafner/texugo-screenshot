@@ -9,7 +9,6 @@ import Tooltip from "./Tooltip";
 const {ipcRenderer} = window.require('electron');
 
 function App() {
-    const [image, setImage] = useState(null);
     const [tool, setTool] = useState(null);
     const [history, setHistory] = useState([]);
     const [color, setColor] = useState("#ff0000");
@@ -126,8 +125,7 @@ function App() {
         let tmp = history;
         let action = tmp.pop();
 
-        if (action.type === "canvas") { 
-            setImage(action.data);
+        if (action.type === "canvas") {
             let ctx = canvas.current.getContext('2d');
             
             let img = new Image();
@@ -178,51 +176,28 @@ function App() {
         setHistory(tmp);
     }
 
-    async function screenshot(screenID) {
-        return await new Promise((resolve, reject) => {
-            let settings = {
-                mandatory: {
-                    chromeMediaSource: 'desktop',
-                    chromeMediaSourceId: screenID,
-                },
-            }
-    
-            navigator.mediaDevices.getUserMedia({
-                video: settings,
-            }).then((stream) => {
-                let video = document.createElement('video');
-                video.srcObject = stream;
-                video.onloadedmetadata = () => {
-                    video.play();
-                    
-                    canvas.current.width = video.videoWidth;
-                    canvas.current.height = video.videoHeight;
-                    canvas.current.getContext('2d').drawImage(video, 0, 0, canvas.current.width, canvas.current.height);
-                    let data = canvas.current.toDataURL('image/png');
-                    resolve(data);
-                }
-            }).catch((e) => {
-                console.error(e);
-                reject(e);
-            })
-        });
-    }
-
-    async function takeScreenshot(screenID) {
-        let data = await screenshot(screenID);
-        setImage(data);
-    }
-
     async function start() {
         let current_url = window.location.href;
         let url = new URL(current_url);
         let screen = url.searchParams.get("screen");
-        let i = url.searchParams.get("i");
 
-        await takeScreenshot(screen);
+        ipcRenderer.send(functions.GET_IMAGE, screen);
+    }
 
-        setTimeout(() => {
-            ipcRenderer.send(functions.SHOW, i);
+    useEffect(() => {
+        ipcRenderer.on(functions.GET_IMAGE, (event, arg) => {
+            arg = JSON.parse(arg);
+
+            canvas.current.width = arg.width;
+            canvas.current.height = arg.height;
+
+            var image = new Image();
+            image.onload = function() {
+                canvas.current.getContext('2d').drawImage(image, 0, 0, arg.width, arg.height);
+            };
+            image.src = arg.base64
+
+            ipcRenderer.send(functions.SHOW, arg.i);
 
             setTimeout(() => {
                 if (toolbar.current) {
@@ -264,10 +239,8 @@ function App() {
                     });
                 }
             }, 500);
-        }, 10);
-    }
+        });
 
-    useEffect(() => {
         start();
 
         window.addEventListener("mousedown", (e) => {
